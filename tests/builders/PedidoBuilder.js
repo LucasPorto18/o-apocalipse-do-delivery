@@ -35,7 +35,9 @@ class PedidoBuilder {
   build() {
     return {
       ...this.pedido,
-      cartao: { ...this.pedido.cartao }
+      cartao: {
+        ...this.pedido.cartao
+      }
     };
   }
 }
