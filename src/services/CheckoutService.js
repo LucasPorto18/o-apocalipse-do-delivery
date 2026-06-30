@@ -1,23 +1,26 @@
+const { CheckoutOptions } = require('./checkout/CheckoutOptions');
+const {
+  PagamentoStatusHandlerFactory
+} = require('./checkout/PagamentoStatusHandlerFactory');
+
 class CheckoutService {
   constructor(gatewayPagamento, pedidoRepository, emailService, options = {}) {
     this.gatewayPagamento = gatewayPagamento;
     this.pedidoRepository = pedidoRepository;
-    this.emailService = emailService;
+    this.options = new CheckoutOptions(options);
 
-    this.timeoutMs = options.timeoutMs ?? 2000;
-    this.maxRetries = options.maxRetries ?? 3;
-    this.backoffMs = options.backoffMs ?? 500;
+    this.pagamentoStatusHandlerFactory = new PagamentoStatusHandlerFactory(
+      pedidoRepository,
+      emailService
+    );
   }
 
   async processar(pedido) {
     try {
       const resposta = await this.cobrarComResiliencia(pedido);
+      const handler = this.pagamentoStatusHandlerFactory.obterHandler(resposta);
 
-      if (this.pagamentoFoiAprovado(resposta)) {
-        return await this.processarPagamentoAprovado(pedido);
-      }
-
-      return await this.processarPagamentoRecusado(pedido);
+      return await handler.executar(pedido);
     } catch (error) {
       return await this.processarErroGateway(pedido, error);
     }
@@ -25,7 +28,7 @@ class CheckoutService {
 
   async cobrarComResiliencia(pedido) {
     let ultimoErro;
-    const totalTentativas = this.maxRetries + 1;
+    const totalTentativas = this.options.maxRetries + 1;
 
     for (let tentativa = 1; tentativa <= totalTentativas; tentativa += 1) {
       try {
@@ -36,7 +39,7 @@ class CheckoutService {
         ultimoErro = error;
 
         if (tentativa < totalTentativas) {
-          await this.esperar(this.backoffMs);
+          await this.esperar(this.options.backoffMs);
         }
       }
     }
@@ -50,37 +53,9 @@ class CheckoutService {
       new Promise((_, reject) => {
         setTimeout(() => {
           reject(new Error('Timeout no gateway de pagamento'));
-        }, this.timeoutMs);
+        }, this.options.timeoutMs);
       })
     ]);
-  }
-
-  pagamentoFoiAprovado(resposta) {
-    return resposta && resposta.status === 'APROVADO';
-  }
-
-  async processarPagamentoAprovado(pedido) {
-    const pedidoProcessado = {
-      ...pedido,
-      status: 'PROCESSADO'
-    };
-
-    const pedidoSalvo = await this.pedidoRepository.salvar(pedidoProcessado);
-
-    this.enviarConfirmacaoSemBloquearResposta(pedido.clienteEmail);
-
-    return pedidoSalvo;
-  }
-
-  async processarPagamentoRecusado(pedido) {
-    const pedidoFalhou = {
-      ...pedido,
-      status: 'FALHOU'
-    };
-
-    await this.pedidoRepository.salvar(pedidoFalhou);
-
-    return null;
   }
 
   async processarErroGateway(pedido, error) {
@@ -94,21 +69,6 @@ class CheckoutService {
     await this.pedidoRepository.salvar(pedidoComErro);
 
     return null;
-  }
-
-  enviarConfirmacaoSemBloquearResposta(clienteEmail) {
-    try {
-      const envio = this.emailService.enviarConfirmacao(
-        clienteEmail,
-        'Pagamento Aprovado'
-      );
-
-      Promise.resolve(envio).catch((error) => {
-        console.error('Falha ao enviar e-mail de confirmação:', error.message);
-      });
-    } catch (error) {
-      console.error('Falha ao iniciar envio de e-mail de confirmação:', error.message);
-    }
   }
 
   esperar(ms) {
