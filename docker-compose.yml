@@ -1,0 +1,29 @@
+services:
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:latest
+    ports:
+      - "8474:8474"
+      - "8666:8666"
+
+  gateway:
+    build: .
+    command: npm run start:gateway
+    environment:
+      PORT: 4001
+      PAYMENT_GATEWAY_DELAY_MS: 300
+    ports:
+      - "4001:4001"
+
+  app:
+    build: .
+    environment:
+      PORT: 3000
+      GATEWAY_URL: http://toxiproxy:8666/charge
+      CHECKOUT_TIMEOUT_MS: 1000
+      CHECKOUT_MAX_RETRIES: 1
+      CHECKOUT_BACKOFF_MS: 100
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway
+      - toxiproxy

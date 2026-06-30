@@ -7,7 +7,8 @@
     "start": "node src/server.js",
     "test": "jest --runInBand",
     "test:coverage": "jest --coverage --runInBand",
-     "mutation": "stryker run"
+     "mutation": "stryker run",
+     "start:gateway": "node src/mocks/paymentGatewayMock.js"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^9.6.1",
