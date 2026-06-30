@@ -1,0 +1,17 @@
+{
+  "name": "o-apocalipse-do-delivery",
+  "version": "1.0.0",
+  "description": "Microsserviço de checkout com testes, BDD, mutação e resiliência.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "jest --runInBand",
+    "test:coverage": "jest --coverage --runInBand"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
